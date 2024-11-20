@@ -7,7 +7,6 @@
 #include <thrust/remove.h>
 #include <thrust/host_vector.h>
 #include <thrust/iterator/transform_iterator.h>
-#include <thrust/system/cuda/detail/par.h>
 
 #include <cub/device/device_reduce.cuh>
 #include <cub/device/device_select.cuh>
@@ -45,7 +44,6 @@ void IntegratedVGICPDerivatives::update_inliers(const Eigen::Isometry3f& x, cons
       lookup_voxels_kernel<true> kernel(*target, source->points_gpu, source->normals_gpu, d_x);
       auto corr_first = thrust::make_transform_iterator(thrust::counting_iterator<int>(0), kernel);
       auto corr_last = thrust::make_transform_iterator(thrust::counting_iterator<int>(source->size()), kernel);
-
       thrust::transform(thrust::cuda_cub::execute_on_stream(stream), corr_first, corr_last, inliers, untie_pair_first<int, int>());
     } else {
       lookup_voxels_kernel<false> kernel(*target, source->points_gpu, source->normals_gpu, d_x);

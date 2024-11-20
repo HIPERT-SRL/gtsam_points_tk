@@ -4,7 +4,6 @@
 #include <thrust/transform.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include <thrust/system/cuda/detail/par.h>
 
 #include <cub/device/device_reduce.cuh>
 #include <cub/iterator/transform_input_iterator.cuh>
@@ -76,12 +75,12 @@ PointCloud::Ptr merge_frames_gpu(
     const thrust::device_ptr<const Eigen::Matrix3f> covs_ptr(frame->covs_gpu);
 
     thrust::transform(
-    thrust::cuda_cub::execute_on_stream(stream),
+      thrust::cuda_cub::execute_on_stream(stream),
       points_ptr,
       points_ptr + frame->size(),
       all_points_ptr + begin,
       transform_means_kernel(transform_ptr));
-    thrust::transform(thrust::cuda_cub::execute_on_stream(stream), covs_ptr, covs_ptr + frame->size(), all_covs_ptr + begin, transform_covs_kernel(transform_ptr));
+    thrust::transform(thrust::cuda::par.on(stream), covs_ptr, covs_ptr + frame->size(), all_covs_ptr + begin, transform_covs_kernel(transform_ptr));
     begin += frame->size();
   }
 

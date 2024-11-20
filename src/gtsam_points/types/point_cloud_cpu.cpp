@@ -414,7 +414,7 @@ PointCloudCPU::Ptr voxelgrid_sampling(const PointCloud::ConstPtr& frame, const d
 
     const Eigen::Array4i coord = fast_floor(frame->points[i] * inv_resolution) + coord_offset;
     if ((coord < 0).any() || (coord > coord_bit_mask).any()) {
-      std::cerr << "warning: voxel " << i << " th coord is out of range!!" << std::endl;
+      std::cerr << "warning: voxel coord is out of range!!" << std::endl;
       return invalid_coord;
     }
 

@@ -6,7 +6,6 @@
 #include <thrust/pair.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include <thrust/system/cuda/detail/par.h>
 
 #include <set>
 #include <chrono>
@@ -212,11 +211,13 @@ void GaussianVoxelMapGPU::insert(const PointCloud& frame) {
   thrust::device_ptr<Eigen::Matrix3f> covs_ptr(frame.covs_gpu);
 
   thrust::for_each(
+    thrust::cuda_cub::execute_on_stream(stream),
     thrust::make_zip_iterator(thrust::make_tuple(points_ptr, covs_ptr)),
     thrust::make_zip_iterator(thrust::make_tuple(points_ptr + frame.size(), covs_ptr + frame.size())),
     accumulate_points_kernel(voxelmap_info_ptr, buckets, num_points, voxel_means, voxel_covs));
 
   thrust::for_each(
+    thrust::cuda_cub::execute_on_stream(stream),
     thrust::counting_iterator<int>(0),
     thrust::counting_iterator<int>(voxelmap_info.num_voxels),
     finalize_voxels_kernel(num_points, voxel_means, voxel_covs));
@@ -250,6 +251,7 @@ void GaussianVoxelMapGPU::create_bucket_table(cudaStream_t stream, const PointCl
     check_error << cudaMemsetAsync(voxels_failures, 0, sizeof(int) * 2, stream);
 
     thrust::for_each(
+      thrust::cuda_cub::execute_on_stream(stream),
       thrust::counting_iterator<int>(0),
       thrust::counting_iterator<int>(frame.size()),
       voxel_bucket_assignment_kernel(voxelmap_info_ptr, coords, index_buckets, voxels_failures));
