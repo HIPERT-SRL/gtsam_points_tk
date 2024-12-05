@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2021  Kenji Koide (k.koide@aist.go.jp)
 
+#include <gtsam/nonlinear/PriorFactor.h>
 #include <gtsam_points/optimizers/incremental_fixed_lag_smoother_with_fallback.hpp>
 
 #include <chrono>
@@ -271,14 +272,14 @@ void IncrementalFixedLagSmootherExtWithFallback::fallback_smoother() const {
     }
 
     const int dim = value.value.dim();
-    new_factors.emplace_shared<gtsam_points::LinearDampingFactor>(value.key, dim, 1e6);
+    // new_factors.emplace_shared<gtsam_points::LinearDampingFactor>(value.key, dim, 1e2);
 
-    if (symbol.chr() == 'x') {
-      new_factors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(
-        value.key,
-        gtsam::Pose3(value.value.cast<gtsam::Pose3>()),
-        gtsam::noiseModel::Isotropic::Precision(6, 1e6));
-    }
+    // if (symbol.chr() == 'x') {
+    //   new_factors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(
+    //     value.key,
+    //     gtsam::Pose3(value.value.cast<gtsam::Pose3>()),
+    //     gtsam::noiseModel::Isotropic::Precision(6, 1e-6));
+    // }
   }
 
   const double smoother_lag = smoother->smootherLag();
