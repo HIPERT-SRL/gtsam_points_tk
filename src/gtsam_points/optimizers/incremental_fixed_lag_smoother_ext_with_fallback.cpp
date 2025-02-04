@@ -272,14 +272,14 @@ void IncrementalFixedLagSmootherExtWithFallback::fallback_smoother() const {
     }
 
     const int dim = value.value.dim();
-    // new_factors.emplace_shared<gtsam_points::LinearDampingFactor>(value.key, dim, 1e2);
+    new_factors.emplace_shared<gtsam_points::LinearDampingFactor>(value.key, dim, 1e6);
 
-    // if (symbol.chr() == 'x') {
-    //   new_factors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(
-    //     value.key,
-    //     gtsam::Pose3(value.value.cast<gtsam::Pose3>()),
-    //     gtsam::noiseModel::Isotropic::Precision(6, 1e-6));
-    // }
+    if (symbol.chr() == 'x') {
+      new_factors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(
+        value.key,
+        gtsam::Pose3(value.value.cast<gtsam::Pose3>()),
+        gtsam::noiseModel::Isotropic::Precision(6, 1e6));
+    }
   }
 
   const double smoother_lag = smoother->smootherLag();
