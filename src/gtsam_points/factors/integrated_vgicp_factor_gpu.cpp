@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2021  Kenji Koide (k.koide@aist.go.jp)
 
+#include <gtsam/linear/JacobianFactor.h>
+#include <gtsam/linear/NoiseModel.h>
 #include <gtsam_points/factors/integrated_vgicp_factor_gpu.hpp>
 
 #include <cuda_runtime.h>
@@ -11,6 +13,9 @@
 #include <gtsam_points/cuda/kernels/linearized_system.cuh>
 #include <gtsam_points/cuda/stream_temp_buffer_roundrobin.hpp>
 #include <gtsam_points/factors/integrated_vgicp_derivatives.cuh>
+
+#include <eigen3/unsupported/Eigen/MatrixFunctions>
+#include <memory>
 
 namespace gtsam_points {
 
@@ -148,7 +153,8 @@ double IntegratedVGICPFactorGPU::error(const gtsam::Values& values) const {
     err = derivatives->compute_error(linearization_point, evaluation_point);
   }
 
-  return err;
+  return  err / 1e100;
+  // return err;
 }
 
 boost::shared_ptr<gtsam::GaussianFactor> IntegratedVGICPFactorGPU::linearize(const gtsam::Values& values) const {
@@ -165,6 +171,26 @@ boost::shared_ptr<gtsam::GaussianFactor> IntegratedVGICPFactorGPU::linearize(con
     l = derivatives->linearize(linearization_point);
   }
 
+  // TODO: testing, implement with actual noise model
+  Eigen::Vector<double,6> cov;
+  // cov << 0.001, 0.001, 0.001, 0.001, 0.001, 0.001;
+  cov << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
+  Eigen::Vector<double,12> covComplete;
+  Eigen::Matrix<double,12,12> covMat = Eigen::Matrix<double,12,12>::Zero();
+  covComplete << cov, cov;
+  covMat.diagonal() = covComplete;
+  // Eigen::Matrix<float,6,6> Cov = cov.asDiagonal();
+  gtsam::SharedNoiseModel noise = gtsam::noiseModel::Gaussian::Covariance(covComplete.asDiagonal());
+  // Eigen::Matrix<float,6,6> H_sqrt = l.H_target_source.sqrt();
+  // l.H_target_source = H_sqrt.transpose() * Cov * H_sqrt;
+  // H_sqrt = l.H_source.sqrt();
+  // l.H_source = H_sqrt.transpose() * Cov * H_sqrt;
+  // H_sqrt = l.H_target.sqrt();
+  // l.H_target = H_sqrt.transpose() * Cov * H_sqrt;
+  // std::cout << "Linearizing\n";
+  // l.print();
+
+
   gtsam::HessianFactor::shared_ptr factor;
 
   if (is_binary) {
@@ -180,6 +206,20 @@ boost::shared_ptr<gtsam::GaussianFactor> IntegratedVGICPFactorGPU::linearize(con
   } else {
     factor.reset(new gtsam::HessianFactor(keys_[0], l.H_source.cast<double>(), -l.b_source.cast<double>(), l.error));
   }
+  std::cout << "Covariance:\n" << factor->information().inverse() << "\n\n New Covariance\n" << 
+  covMat.sqrt() * 
+  factor->information().inverse() *
+   covMat.sqrt()
+   << "\n\n";
+  // factor->info() = (factor->info() * cov.asDiagonal().inverse());
+
+  // auto jac = factor->jacobian();
+
+  // gtsam::JacobianFactor::shared_ptr jacFactor;
+  //   jacFactor.reset(new gtsam::JacobianFactor(jac,l.error, noise));
+  //   // jacFactor->setModel(false, noise->sigmas());
+  // std::cout << "Linearizing: \n";
+  // jacFactor->print();
 
   return factor;
 }
@@ -209,6 +249,7 @@ void IntegratedVGICPFactorGPU::store_linearized(const void* lin_output_cpu) {
   auto linearized = reinterpret_cast<const LinearizedSystem6*>(lin_output_cpu);
   linearization_result.reset(new LinearizedSystem6(*linearized));
   evaluation_result = linearized->error;
+  // evaluation_result = 1e4 * linearized->error;
 }
 
 void IntegratedVGICPFactorGPU::issue_compute_error(
@@ -232,6 +273,7 @@ void IntegratedVGICPFactorGPU::issue_compute_error(
 void IntegratedVGICPFactorGPU::store_computed_error(const void* eval_output_cpu) {
   auto evaluated = reinterpret_cast<const float*>(eval_output_cpu);
   evaluation_result = *evaluated;
+  // evaluation_result = 1e4 * (*evaluated);
 }
 
 void IntegratedVGICPFactorGPU::sync() {

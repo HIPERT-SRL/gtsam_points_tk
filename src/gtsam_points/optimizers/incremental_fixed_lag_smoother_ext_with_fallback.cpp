@@ -266,9 +266,9 @@ void IncrementalFixedLagSmootherExtWithFallback::fallback_smoother() const {
     const double fixation_time = min_stamps[symbol.chr()] + fixation_duration;
 
     const auto stamp = stamps.find(value.key);
-    if (stamp == stamps.end() || stamp->second > fixation_time) {
-      continue;
-    }
+    // if (stamp == stamps.end() || stamp->second > fixation_time) {
+    //   continue;
+    // }
 
     const int dim = value.value.dim();
     new_factors.emplace_shared<gtsam_points::LinearDampingFactor>(value.key, dim, 1e6);
