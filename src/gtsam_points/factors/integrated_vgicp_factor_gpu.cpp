@@ -172,15 +172,15 @@ boost::shared_ptr<gtsam::GaussianFactor> IntegratedVGICPFactorGPU::linearize(con
   }
 
   // TODO: testing, implement with actual noise model
-  Eigen::Vector<double,6> cov;
+  // Eigen::Vector<double,6> cov;
   // cov << 0.001, 0.001, 0.001, 0.001, 0.001, 0.001;
-  cov << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
-  Eigen::Vector<double,12> covComplete;
-  Eigen::Matrix<double,12,12> covMat = Eigen::Matrix<double,12,12>::Zero();
-  covComplete << cov, cov;
-  covMat.diagonal() = covComplete;
+  // cov << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
+  // Eigen::Vector<double,12> covComplete;
+  // Eigen::Matrix<double,12,12> covMat = Eigen::Matrix<double,12,12>::Zero();
+  // covComplete << cov, cov;
+  // covMat.diagonal() = covComplete;
   // Eigen::Matrix<float,6,6> Cov = cov.asDiagonal();
-  gtsam::SharedNoiseModel noise = gtsam::noiseModel::Gaussian::Covariance(covComplete.asDiagonal());
+  // gtsam::SharedNoiseModel noise = gtsam::noiseModel::Gaussian::Covariance(covComplete.asDiagonal());
   // Eigen::Matrix<float,6,6> H_sqrt = l.H_target_source.sqrt();
   // l.H_target_source = H_sqrt.transpose() * Cov * H_sqrt;
   // H_sqrt = l.H_source.sqrt();
@@ -197,20 +197,22 @@ boost::shared_ptr<gtsam::GaussianFactor> IntegratedVGICPFactorGPU::linearize(con
     factor.reset(new gtsam::HessianFactor(
       keys_[0],
       keys_[1],
-      l.H_target.cast<double>(),
-      l.H_target_source.cast<double>(),
-      -l.b_target.cast<double>(),
-      l.H_source.cast<double>(),
-      -l.b_source.cast<double>(),
-      l.error));
+      l.H_target.cast<double>()/1e4,
+      l.H_target_source.cast<double>()/1e4,
+      -l.b_target.cast<double>()/1e4,
+      l.H_source.cast<double>()/1e4,
+      -l.b_source.cast<double>()/1e4,
+      l.error/1e4));
   } else {
     factor.reset(new gtsam::HessianFactor(keys_[0], l.H_source.cast<double>(), -l.b_source.cast<double>(), l.error));
   }
-  std::cout << "Covariance:\n" << factor->information().inverse() << "\n\n New Covariance\n" << 
-  covMat.sqrt() * 
-  factor->information().inverse() *
-   covMat.sqrt()
-   << "\n\n";
+  // std::cout << "Covariance:\n" << factor->information(); 
+  // << "\n\n New Covariance\n" << 
+  // covMat.sqrt() * 
+  // factor->information().inverse() *
+  //  covMat.sqrt()
+  //  << "\n\n";
+  // std::cout << factor->augmentedJacobian() << "\n";
   // factor->info() = (factor->info() * cov.asDiagonal().inverse());
 
   // auto jac = factor->jacobian();
