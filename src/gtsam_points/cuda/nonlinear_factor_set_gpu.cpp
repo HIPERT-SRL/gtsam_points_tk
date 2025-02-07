@@ -12,16 +12,34 @@ NonlinearFactorSetGPU::DeviceBuffer::DeviceBuffer() : size(0), buffer(nullptr) {
 
 NonlinearFactorSetGPU::DeviceBuffer::~DeviceBuffer() {
   if (buffer) {
+#if CUDAToolkit_VERSION_MAJOR == 11
+#if CUDAToolkit_VERSION_MINOR >= 4
     check_error << cudaFreeAsync(buffer, 0);
+#else
+    check_error << cudaFree(buffer);
+#endif
+#endif
   }
 }
 
 void NonlinearFactorSetGPU::DeviceBuffer::resize(size_t size, CUstream_st* stream) {
   if (this->size < size) {
     if (buffer) {
+#if CUDAToolkit_VERSION_MAJOR == 11
+#if CUDAToolkit_VERSION_MINOR >= 4
       check_error << cudaFreeAsync(buffer, stream);
+#else
+      check_error << cudaFree(buffer);
+#endif
+#endif
     }
+    #if CUDAToolkit_VERSION_MAJOR == 11
+#if CUDAToolkit_VERSION_MINOR >= 4
     check_error << cudaMallocAsync(&buffer, size, stream);
+#else
+    check_error << cudaMalloc(&buffer, size);
+#endif
+#endif
     this->size = size;
   }
 }

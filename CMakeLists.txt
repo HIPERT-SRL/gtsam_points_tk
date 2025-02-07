@@ -54,7 +54,7 @@ if(BUILD_WITH_CUDA)
   find_package(CUDAToolkit REQUIRED)
   enable_language(CUDA)
   set(CUDA_STANDARD 17)
-
+  
   if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24.0")
     if(BUILD_WITH_CUDA_MULTIARCH)
       set(CMAKE_CUDA_ARCHITECTURES "all-major" CACHE STRING "CUDA architectures" FORCE)
@@ -243,6 +243,8 @@ if(BUILD_WITH_CUDA)
   target_link_libraries(gtsam_points
     gtsam_points_cuda
   )
+
+  target_compile_definitions(gtsam_points_cuda PRIVATE CUDAToolkit_VERSION_MAJOR=${CUDAToolkit_VERSION_MAJOR} CUDAToolkit_VERSION_MINOR=${CUDAToolkit_VERSION_MINOR})
 endif()
 
 #Demo

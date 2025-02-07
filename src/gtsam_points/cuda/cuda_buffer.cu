@@ -7,18 +7,26 @@
 
 namespace gtsam_points {
 
-CUDABuffer::CUDABuffer(bool use_pinned_buffer) : use_pinned_buffer(use_pinned_buffer), buffer_size(0), h_buffer(nullptr), d_buffer(nullptr) {}
+CUDABuffer::CUDABuffer(bool use_pinned_buffer)
+    : use_pinned_buffer(use_pinned_buffer), buffer_size(0), h_buffer(nullptr),
+      d_buffer(nullptr) {}
 
 CUDABuffer::~CUDABuffer() {
   if (h_buffer) {
     check_error << cudaFreeHost(h_buffer);
   }
   if (d_buffer) {
+#if CUDAToolkit_VERSION_MAJOR == 11
+#if CUDAToolkit_VERSION_MINOR >= 4
     check_error << cudaFreeAsync(d_buffer, 0);
+#else
+    check_error << cudaFree(d_buffer);
+#endif
+#endif
   }
 }
 
-void CUDABuffer::resize(size_t size, CUstream_st* stream) {
+void CUDABuffer::resize(size_t size, CUstream_st *stream) {
   if (buffer_size < size) {
     size = size * 1.2;
     if (use_pinned_buffer) {
@@ -26,16 +34,25 @@ void CUDABuffer::resize(size_t size, CUstream_st* stream) {
       check_error << cudaMallocHost(&h_buffer, size);
     }
 
+#if CUDAToolkit_VERSION_MAJOR == 11
+#if CUDAToolkit_VERSION_MINOR >= 4
     check_error << cudaFreeAsync(d_buffer, stream);
     check_error << cudaMallocAsync(&d_buffer, size, stream);
+#else
+    check_error << cudaFree(d_buffer);
+    check_error << cudaMalloc(&d_buffer, size);
+#endif
+#endif
     buffer_size = size;
   }
 }
 
-void CUDABuffer::upload(size_t size, CUstream_st* stream) {
+void CUDABuffer::upload(size_t size, CUstream_st *stream) {
   if (size > buffer_size) {
-    std::cerr << "error: data size must be smaller than buffer_size!!" << std::endl;
-    std::cerr << "     : size=" << size << " buffer_size=" << buffer_size << std::endl;
+    std::cerr << "error: data size must be smaller than buffer_size!!"
+              << std::endl;
+    std::cerr << "     : size=" << size << " buffer_size=" << buffer_size
+              << std::endl;
     abort();
   }
 
@@ -44,54 +61,58 @@ void CUDABuffer::upload(size_t size, CUstream_st* stream) {
     abort();
   }
 
-  check_error << cudaMemcpyAsync(d_buffer, h_buffer, size, cudaMemcpyHostToDevice, stream);
+  check_error << cudaMemcpyAsync(d_buffer, h_buffer, size,
+                                 cudaMemcpyHostToDevice, stream);
+
 }
 
-void CUDABuffer::upload(CUstream_st* stream) {
-  upload(buffer_size, stream);
-}
+void CUDABuffer::upload(CUstream_st *stream) { upload(buffer_size, stream); }
 
-void CUDABuffer::upload(const void* buffer, size_t size, CUstream_st* stream) {
+void CUDABuffer::upload(const void *buffer, size_t size, CUstream_st *stream) {
   resize(size, stream);
 
-  const void* src_buffer = buffer;
+  const void *src_buffer = buffer;
   if (use_pinned_buffer) {
-    check_error << cudaMemcpyAsync(h_buffer, buffer, size, cudaMemcpyHostToHost, stream);
+    check_error << cudaMemcpyAsync(h_buffer, buffer, size, cudaMemcpyHostToHost,
+                                   stream);
+
+
     src_buffer = h_buffer;
   }
 
-  check_error << cudaMemcpyAsync(d_buffer, src_buffer, size, cudaMemcpyHostToDevice, stream);
+  check_error << cudaMemcpyAsync(d_buffer, src_buffer, size,
+                                 cudaMemcpyHostToDevice, stream);
 }
 
-void CUDABuffer::download(CUstream_st* stream) {
+void CUDABuffer::download(CUstream_st *stream) {
   if (!use_pinned_buffer) {
-    std::cerr << "error: trying to dowload data to disabled pinned host buffer!!" << std::endl;
+    std::cerr
+        << "error: trying to dowload data to disabled pinned host buffer!!"
+        << std::endl;
     abort();
   }
+  check_error << cudaMemcpyAsync(h_buffer, d_buffer, buffer_size,
+                                 cudaMemcpyDeviceToHost, stream);
 
-  check_error << cudaMemcpyAsync(h_buffer, d_buffer, buffer_size, cudaMemcpyDeviceToHost, stream);
 }
 
-void CUDABuffer::download(void* buffer, size_t size, CUstream_st* stream) {
+void CUDABuffer::download(void *buffer, size_t size, CUstream_st *stream) {
   if (use_pinned_buffer) {
-    check_error << cudaMemcpyAsync(h_buffer, d_buffer, buffer_size, cudaMemcpyDeviceToHost, stream);
-    check_error << cudaMemcpyAsync(buffer, h_buffer, size, cudaMemcpyHostToHost, stream);
+    check_error << cudaMemcpyAsync(h_buffer, d_buffer, buffer_size,
+                                   cudaMemcpyDeviceToHost, stream);
+    check_error << cudaMemcpyAsync(buffer, h_buffer, size, cudaMemcpyHostToHost,
+                                   stream);
   } else {
-    check_error << cudaMemcpyAsync(buffer, d_buffer, size, cudaMemcpyDeviceToHost, stream);
+    check_error << cudaMemcpyAsync(buffer, d_buffer, size,
+                                   cudaMemcpyDeviceToHost, stream);
   }
   check_error << cudaStreamSynchronize(stream);
 }
 
-size_t CUDABuffer::size() const {
-  return buffer_size;
-}
+size_t CUDABuffer::size() const { return buffer_size; }
 
-void* CUDABuffer::host_buffer() {
-  return h_buffer;
-}
+void *CUDABuffer::host_buffer() { return h_buffer; }
 
-void* CUDABuffer::device_buffer() {
-  return d_buffer;
-}
+void *CUDABuffer::device_buffer() { return d_buffer; }
 
-}  // namespace gtsam_points
+} // namespace gtsam_points

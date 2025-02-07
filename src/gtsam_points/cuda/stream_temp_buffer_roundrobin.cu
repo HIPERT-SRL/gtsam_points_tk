@@ -9,11 +9,23 @@
 namespace gtsam_points {
 
 TempBufferManager::Buffer::Buffer(size_t buffer_size) : size(buffer_size) {
+#if CUDAToolkit_VERSION_MAJOR == 11
+#if CUDAToolkit_VERSION_MINOR >= 4
   check_error << cudaMallocAsync(&buffer, buffer_size, 0);
+#else
+  check_error << cudaMalloc(&buffer, buffer_size);
+#endif
+#endif
 }
 
 TempBufferManager::Buffer::~Buffer() {
+#if CUDAToolkit_VERSION_MAJOR == 11
+#if CUDAToolkit_VERSION_MINOR >= 4
   check_error << cudaFreeAsync(buffer, 0);
+#else
+  check_error << cudaFree(buffer);
+#endif
+#endif
 }
 
 TempBufferManager::TempBufferManager(size_t init_buffer_size) {
@@ -24,7 +36,7 @@ TempBufferManager::TempBufferManager(size_t init_buffer_size) {
 
 TempBufferManager::~TempBufferManager() {}
 
-char* TempBufferManager::get_buffer(size_t buffer_size) {
+char *TempBufferManager::get_buffer(size_t buffer_size) {
   if (buffers.empty() || buffers.back()->size < buffer_size) {
     buffers.emplace_back(new Buffer(buffer_size * 1.2));
   }
@@ -40,34 +52,32 @@ void TempBufferManager::clear() {
   buffers.erase(buffers.begin(), buffers.begin() + buffers.size() - 1);
 }
 
-void TempBufferManager::clear_all() {
-  buffers.clear();
-}
+void TempBufferManager::clear_all() { buffers.clear(); }
 
-StreamTempBufferRoundRobin::StreamTempBufferRoundRobin(int num_streams, size_t init_buffer_size) {
+StreamTempBufferRoundRobin::StreamTempBufferRoundRobin(
+    int num_streams, size_t init_buffer_size) {
   this->init_buffer_size = init_buffer_size;
   stream_roundrobin.reset(new StreamRoundRobin(num_streams));
 }
 
 StreamTempBufferRoundRobin::~StreamTempBufferRoundRobin() {}
 
-void StreamTempBufferRoundRobin::sync_all() {
-  stream_roundrobin->sync_all();
-}
+void StreamTempBufferRoundRobin::sync_all() { stream_roundrobin->sync_all(); }
 
 void StreamTempBufferRoundRobin::clear() {
-  for (auto& buffer : buffer_map) {
+  for (auto &buffer : buffer_map) {
     buffer.second->clear();
   }
 }
 
 void StreamTempBufferRoundRobin::clear_all() {
-  for (auto& buffer : buffer_map) {
+  for (auto &buffer : buffer_map) {
     buffer.second->clear_all();
   }
 }
 
-std::pair<CUstream_st*, TempBufferManager::Ptr> StreamTempBufferRoundRobin::get_stream_buffer() {
+std::pair<CUstream_st *, TempBufferManager::Ptr>
+StreamTempBufferRoundRobin::get_stream_buffer() {
   cudaStream_t stream = stream_roundrobin->get_stream();
 
   auto found = buffer_map.find(stream);
@@ -79,4 +89,4 @@ std::pair<CUstream_st*, TempBufferManager::Ptr> StreamTempBufferRoundRobin::get_
   return std::make_pair(stream, found->second);
 }
 
-}  // namespace gtsam_points
+} // namespace gtsam_points
