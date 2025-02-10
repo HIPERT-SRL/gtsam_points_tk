@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2021  Kenji Koide (k.koide@aist.go.jp)
 #include <gtsam_points/cuda/cuda_memory.hpp>
-
+#include <gtsam_points/cuda/cuda_malloc_async.hpp>
 #include <cuda_runtime.h>
 #include <gtsam_points/cuda/check_error.cuh>
 

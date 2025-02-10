@@ -55,6 +55,8 @@ if(BUILD_WITH_CUDA)
   enable_language(CUDA)
   set(CUDA_STANDARD 17)
 
+  message("CUDA Version: ${CUDA_VERSION}")
+
   if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24.0")
     if(BUILD_WITH_CUDA_MULTIARCH)
       set(CMAKE_CUDA_ARCHITECTURES "all-major" CACHE STRING "CUDA architectures" FORCE)

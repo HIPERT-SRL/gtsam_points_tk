@@ -3,7 +3,7 @@
 
 #pragma once
 
-#if (CUDA_VERSION < 11000)
+#if (CUDA_VERSION < 11100)
 
 #warning "Use cuda(Malloc|Free) instead of cuda(Malloc|Free)Async for backward compatibility"
 

@@ -2,7 +2,7 @@
 // Copyright (c) 2021  Kenji Koide (k.koide@aist.go.jp)
 
 #include <gtsam_points/cuda/cuda_buffer.hpp>
-
+#include <gtsam_points/cuda/cuda_malloc_async.hpp>
 #include <gtsam_points/cuda/check_error.cuh>
 
 namespace gtsam_points {

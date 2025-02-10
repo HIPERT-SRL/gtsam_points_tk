@@ -5,6 +5,7 @@
 
 #include <gtsam_points/cuda/check_error.cuh>
 #include <thrust/device_vector.h>
+#include <gtsam_points/cuda/cuda_malloc_async.hpp>
 
 namespace gtsam_points {
 
