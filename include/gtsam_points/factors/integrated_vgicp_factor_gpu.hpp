@@ -37,6 +37,7 @@ public:
    * @param source        Source frame
    * @param stream        CUDA stream
    * @param temp_buffer   CUDA temporary buffer manager
+   * @param relaxation    Relaxation factor for the factor cost (1 for no relaxation, max 1e6)
    */
   IntegratedVGICPFactorGPU(
     gtsam::Key target_key,
@@ -44,7 +45,8 @@ public:
     const GaussianVoxelMap::ConstPtr& target,
     const PointCloud::ConstPtr& source,
     CUstream_st* stream = nullptr,
-    std::shared_ptr<TempBufferManager> temp_buffer = nullptr);
+    std::shared_ptr<TempBufferManager> temp_buffer = nullptr,
+    const float relaxation = 1);
 
   /**
    * @brief Create a unary VGICP_GPU factor between a fixed target pose and an active source pose.
@@ -54,6 +56,7 @@ public:
    * @param source                 Source frame
    * @param stream                 CUDA stream
    * @param temp_buffer            CUDA temporary buffer manager
+   * @param relaxation    Relaxation factor for the factor cost (1 for no relaxation, max 1e6)
    */
   IntegratedVGICPFactorGPU(
     const gtsam::Pose3& fixed_target_pose,
@@ -61,7 +64,8 @@ public:
     const GaussianVoxelMap::ConstPtr& target,
     const PointCloud::ConstPtr& source,
     CUstream_st* stream = nullptr,
-    std::shared_ptr<TempBufferManager> temp_buffer = nullptr);
+    std::shared_ptr<TempBufferManager> temp_buffer = nullptr,
+    const float relaxation = 1);
 
   virtual ~IntegratedVGICPFactorGPU() override;
 
@@ -112,6 +116,8 @@ private:
   Eigen::Isometry3f calc_delta(const gtsam::Values& values) const;
 
 private:
+  float relaxation_factor;
+
   bool is_binary;
   Eigen::Isometry3f fixed_target_pose;
 

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2021  Kenji Koide (k.koide@aist.go.jp)
 
+#include <gtsam/base/VerticalBlockMatrix.h>
 #include <gtsam/linear/JacobianFactor.h>
 #include <gtsam/linear/NoiseModel.h>
 #include <gtsam_points/factors/integrated_vgicp_factor_gpu.hpp>
+#include <gtsam/base/cholesky.h>
 
 #include <cuda_runtime.h>
 
@@ -25,7 +27,8 @@ IntegratedVGICPFactorGPU::IntegratedVGICPFactorGPU(
   const GaussianVoxelMap::ConstPtr& target,
   const PointCloud::ConstPtr& source,
   CUstream_st* stream,
-  std::shared_ptr<TempBufferManager> temp_buffer)
+  std::shared_ptr<TempBufferManager> temp_buffer,
+  const float relaxation)
 : gtsam_points::NonlinearFactorGPU(gtsam::KeyVector{target_key, source_key}),
   is_binary(true),
   fixed_target_pose(Eigen::Isometry3f::Identity()),
@@ -33,7 +36,8 @@ IntegratedVGICPFactorGPU::IntegratedVGICPFactorGPU(
   source(source),
   derivatives(new IntegratedVGICPDerivatives(this->target, source, stream, temp_buffer)),
   linearized(false),
-  linearization_point(Eigen::Isometry3f::Identity()) {
+  linearization_point(Eigen::Isometry3f::Identity()),
+  relaxation_factor(relaxation) {
   //
   if (!source->points_gpu) {
     std::cerr << "error: GPU source points have not been allocated!!" << std::endl;
@@ -57,7 +61,8 @@ IntegratedVGICPFactorGPU::IntegratedVGICPFactorGPU(
   const GaussianVoxelMap::ConstPtr& target,
   const PointCloud::ConstPtr& source,
   CUstream_st* stream,
-  std::shared_ptr<TempBufferManager> temp_buffer)
+  std::shared_ptr<TempBufferManager> temp_buffer,
+  const float relaxation)
 : gtsam_points::NonlinearFactorGPU(gtsam::KeyVector{source_key}),
   is_binary(false),
   fixed_target_pose(fixed_target_pose.matrix().cast<float>()),
@@ -65,7 +70,8 @@ IntegratedVGICPFactorGPU::IntegratedVGICPFactorGPU(
   source(source),
   derivatives(new IntegratedVGICPDerivatives(this->target, source, stream, temp_buffer)),
   linearized(false),
-  linearization_point(Eigen::Isometry3f::Identity()) {
+  linearization_point(Eigen::Isometry3f::Identity()),
+  relaxation_factor(relaxation) {
   //
   if (!source->points_gpu) {
     std::cerr << "error: GPU source points have not been allocated!!" << std::endl;
@@ -153,8 +159,7 @@ double IntegratedVGICPFactorGPU::error(const gtsam::Values& values) const {
     err = derivatives->compute_error(linearization_point, evaluation_point);
   }
 
-  return  err / 1e100;
-  // return err;
+  return err;
 }
 
 boost::shared_ptr<gtsam::GaussianFactor> IntegratedVGICPFactorGPU::linearize(const gtsam::Values& values) const {
@@ -171,25 +176,12 @@ boost::shared_ptr<gtsam::GaussianFactor> IntegratedVGICPFactorGPU::linearize(con
     l = derivatives->linearize(linearization_point);
   }
 
-  // TODO: testing, implement with actual noise model
-  // Eigen::Vector<double,6> cov;
-  // cov << 0.001, 0.001, 0.001, 0.001, 0.001, 0.001;
-  // cov << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
-  // Eigen::Vector<double,12> covComplete;
-  // Eigen::Matrix<double,12,12> covMat = Eigen::Matrix<double,12,12>::Zero();
-  // covComplete << cov, cov;
-  // covMat.diagonal() = covComplete;
-  // Eigen::Matrix<float,6,6> Cov = cov.asDiagonal();
-  // gtsam::SharedNoiseModel noise = gtsam::noiseModel::Gaussian::Covariance(covComplete.asDiagonal());
-  // Eigen::Matrix<float,6,6> H_sqrt = l.H_target_source.sqrt();
-  // l.H_target_source = H_sqrt.transpose() * Cov * H_sqrt;
-  // H_sqrt = l.H_source.sqrt();
-  // l.H_source = H_sqrt.transpose() * Cov * H_sqrt;
-  // H_sqrt = l.H_target.sqrt();
-  // l.H_target = H_sqrt.transpose() * Cov * H_sqrt;
-  // std::cout << "Linearizing\n";
-  // l.print();
-
+  l.H_source = l.H_source / relaxation_factor;
+  l.H_target = l.H_target / relaxation_factor;
+  l.H_target_source = l.H_target_source / relaxation_factor;
+  l.b_source = l.b_source / relaxation_factor;
+  l.b_target = l.b_target / relaxation_factor;
+  l.error = l.error / relaxation_factor;
 
   gtsam::HessianFactor::shared_ptr factor;
 
@@ -197,31 +189,15 @@ boost::shared_ptr<gtsam::GaussianFactor> IntegratedVGICPFactorGPU::linearize(con
     factor.reset(new gtsam::HessianFactor(
       keys_[0],
       keys_[1],
-      l.H_target.cast<double>()/1e4,
-      l.H_target_source.cast<double>()/1e4,
-      -l.b_target.cast<double>()/1e4,
-      l.H_source.cast<double>()/1e4,
-      -l.b_source.cast<double>()/1e4,
-      l.error/1e4));
+      l.H_target.cast<double>(),
+      l.H_target_source.cast<double>(),
+      -l.b_target.cast<double>(),
+      l.H_source.cast<double>(),
+      -l.b_source.cast<double>(),
+      l.error));
   } else {
     factor.reset(new gtsam::HessianFactor(keys_[0], l.H_source.cast<double>(), -l.b_source.cast<double>(), l.error));
   }
-  // std::cout << "Covariance:\n" << factor->information(); 
-  // << "\n\n New Covariance\n" << 
-  // covMat.sqrt() * 
-  // factor->information().inverse() *
-  //  covMat.sqrt()
-  //  << "\n\n";
-  // std::cout << factor->augmentedJacobian() << "\n";
-  // factor->info() = (factor->info() * cov.asDiagonal().inverse());
-
-  // auto jac = factor->jacobian();
-
-  // gtsam::JacobianFactor::shared_ptr jacFactor;
-  //   jacFactor.reset(new gtsam::JacobianFactor(jac,l.error, noise));
-  //   // jacFactor->setModel(false, noise->sigmas());
-  // std::cout << "Linearizing: \n";
-  // jacFactor->print();
 
   return factor;
 }
